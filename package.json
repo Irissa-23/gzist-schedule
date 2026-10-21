@@ -1,0 +1,13 @@
+{
+  "name": "guangli-timetable",
+  "version": "2.0.0",
+  "private": true,
+  "description": "广州理工学院门户课表逆向 + 手机横屏课表前端（零依赖）",
+  "type": "module",
+  "scripts": {
+    "start": "node server/server.mjs",
+    "sync": "node -e \"fetch('http://127.0.0.1:8787/api/sync',{method:'POST'}).then(r=>r.json()).then(j=>console.log(JSON.stringify(j,null,2)))\"",
+    "cookies": "node scripts/import-cookies.mjs"
+  },
+  "engines": { "node": ">=18" }
+}

@@ -1,0 +1,878 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#0f1722" />
+<title>课表 · 广理</title>
+<style>
+  :root{
+    --gap: 3px;
+  --seccol: clamp(22px, 3.8vw, 46px);   /* 左侧节次栏宽度：竖屏由 media query 覆盖 */
+    --bg: #0f1722;
+    --panel: #16202e;
+    --line: rgba(255,255,255,.10);
+    --ink: #eaf2ff;
+    --muted: #8ea3bd;
+    --accent: #4fd1c5;
+    --ok: #4ade80;
+    --warn: #fbbf24;
+    --bad: #f87171;
+  }
+  *{ box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html,body{ height:100%; margin:0; }
+  body{
+    background: var(--bg); color: var(--ink); overflow:hidden;
+    font-family: -apple-system, "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei", system-ui, sans-serif;
+  }
+
+  #app{ height:100dvh; display:flex; flex-direction:column;
+        padding: calc(env(safe-area-inset-top) + 4px) calc(env(safe-area-inset-right) + 6px)
+                 calc(env(safe-area-inset-bottom) + 4px) calc(env(safe-area-inset-left) + 6px); }
+
+  /* ---------- 顶栏 ---------- */
+  header{ display:flex; align-items:center; gap:8px; padding:0 2px 5px; flex:0 0 auto; min-width:0; }
+  .brand{ font-size: clamp(11px, 2.0vh, 15px); font-weight:700; letter-spacing:.5px; white-space:nowrap; }
+  .brand b{ color: var(--accent); }
+  .who{ font: inherit; font-size: clamp(9px, 1.6vh, 12px); color: var(--muted); white-space:nowrap;
+        overflow:hidden; text-overflow:ellipsis; max-width: 34vw;
+        background:transparent; border:1px solid transparent; border-radius:999px;
+        padding:3px 8px 3px 6px; cursor:pointer; display:inline-flex; align-items:center; gap:4px; }
+  .who:hover{ background: rgba(255,255,255,.06); border-color: var(--line); }
+  .who i{ font-style:normal; color:#c7d7ea; }
+  .who .caret{ opacity:.55; font-size:.9em; }
+  .spacer{ flex:1 1 auto; }
+
+  /* 状态胶囊 */
+  .chip{
+    display:inline-flex; align-items:center; gap:5px; flex:0 0 auto;
+    font-size: clamp(8.5px, 1.45vh, 11px); line-height:1;
+    padding: 4px 8px; border-radius: 999px;
+    border:1px solid var(--line); color: var(--muted); background: rgba(255,255,255,.03);
+    white-space:nowrap;
+  }
+  .chip .dot{ width:7px; height:7px; border-radius:50%; background: var(--muted); flex:0 0 auto; }
+  .chip.ok{ color:#bbf7d0; border-color: rgba(74,222,128,.35); background: rgba(74,222,128,.08); }
+  .chip.ok .dot{ background: var(--ok); }
+  .chip.syncing{ color:#fde68a; border-color: rgba(251,191,36,.35); background: rgba(251,191,36,.08); }
+  .chip.syncing .dot{ background: var(--warn); animation: pulse 1s infinite; }
+  .chip.offline{ color:#cbd5e1; }
+  .chip.bad{ color:#fecaca; border-color: rgba(248,113,113,.4); background: rgba(248,113,113,.1); cursor:pointer; }
+  .chip.bad .dot{ background: var(--bad); }
+  @keyframes pulse{ 50%{ opacity:.25; } }
+
+  button.upd{
+    font: inherit; font-size: clamp(9px, 1.5vh, 12px); flex:0 0 auto;
+    display:inline-flex; align-items:center; gap:4px;
+    padding: 4px 10px; border-radius:999px; cursor:pointer;
+    color:#08131f; background: var(--accent); border:1px solid var(--accent);
+    font-weight:600; white-space:nowrap;
+  }
+  button.upd:disabled{ opacity:.55; cursor:default; }
+  button.upd.spin .ico{ display:inline-block; animation: rot 1s linear infinite; }
+  @keyframes rot{ to{ transform: rotate(360deg); } }
+
+  .terms{ display:flex; gap:4px; flex:0 0 auto; }
+  .terms button{
+    font: inherit; font-size: clamp(9px, 1.5vh, 12px);
+    padding: 4px 8px; border-radius: 999px; cursor:pointer;
+    background: transparent; color: var(--muted); border: 1px solid var(--line);
+    white-space:nowrap;
+  }
+  .terms button[aria-pressed="true"]{ background: rgba(79,209,197,.15); color: var(--accent); border-color: rgba(79,209,197,.5); }
+
+  /* ---------- 周次切换 ---------- */
+  .wknav{ display:flex; align-items:center; gap:3px; flex:0 0 auto; }
+  .wknav button{
+    font: inherit; font-size: clamp(10px, 1.7vh, 13px); line-height:1;
+    width: clamp(18px, 2.6vh, 22px); height: clamp(18px, 2.6vh, 22px);
+    display:flex; align-items:center; justify-content:center;
+    padding:0; border-radius:6px; cursor:pointer;
+    background: transparent; color:#c7d7ea; border:1px solid var(--line);
+  }
+  .wknav button:hover{ background: rgba(255,255,255,.06); }
+  .wknav button:disabled{ opacity:.35; cursor:default; background:transparent; }
+  .wknav select{
+    font: inherit; font-size: clamp(10px, 1.7vh, 13px);
+    height: clamp(18px, 2.6vh, 22px);
+    padding: 0 2px; border-radius:6px; cursor:pointer;
+    background: rgba(79,209,197,.12); color: var(--accent);
+    border:1px solid rgba(79,209,197,.45);
+    -webkit-appearance:none; appearance:none; text-align:center;
+  }
+  .wknav select option{ background:#0d1520; color:#e6edf7; }
+  .wknav .now{
+    width:auto; padding:0 7px; font-size: clamp(9px, 1.5vh, 12px);
+    color:#9fb4cd; border-color: var(--line);
+  }
+
+  /* 很窄（手机竖屏）：顶栏允许折成两行，不硬挤 */
+  @media (max-width: 480px){
+    header{ flex-wrap: wrap; row-gap: 4px; }
+    .chip, .upd{ flex: 0 0 auto; }
+  }
+
+  /* 窄屏（手机竖屏 / 小窗）：顶栏挤不下时收缩，不让它撑破 */
+  @media (max-width: 640px){
+    .wknav .now{ display:none; }
+    .who{ max-width: 34vw; overflow:hidden; text-overflow:ellipsis; }
+    .terms button{ padding:3px 6px; }
+    .wknav select{ max-width: 84px; }
+  }
+
+  /* ---------- 网格 ---------- */
+  main{ flex:1 1 auto; min-height:0; }
+  .grid{ height:100%; display:grid; gap: var(--gap); }
+
+  .day{ display:flex; align-items:center; justify-content:center;
+        font-size: clamp(9px, 1.75vh, 13px); font-weight:600; color:#bcd0e6;
+        background: var(--panel); border:1px solid var(--line); letter-spacing:.5px; border-radius:5px; }
+  .day.today{ color:#08131f; background: var(--accent); border-color: var(--accent); }
+  .corner{ display:flex; align-items:center; justify-content:center;
+           font-size: clamp(7px, 1.3vh, 10px); color:#5f7391; }
+  /* 左侧栏：节号 + 该节的「上课 / 下课」时间（时间只在左栏显示，课程卡片里不重复） */
+  .sec{ display:flex; flex-direction:column; align-items:center; justify-content:center; container-type: size;
+        background: var(--panel); border:1px solid var(--line); border-radius:5px;
+        font-size: clamp(8px, 1.5vh, 11px); color:#93a9c3; line-height:1.05; }
+  .sec b{ font-size: clamp(8px, 42cqh, 13px); color:#dbe9fb; font-weight:700; }
+  .sec .t{ display:flex; flex-direction:column; align-items:center; margin-top:2px;
+           font-size: clamp(5px, 26cqh, 9.5px); color:#8fa6c1;
+           font-variant-numeric: tabular-nums; letter-spacing:-.03em; line-height:1.12; }
+  .sec .t span:last-child{ color:#6d829d; }
+  /* 行太矮时优先保住节号（时间还能在课块的 title 里看） */
+  @container (max-height: 21px){ .sec .t{ display:none; } }
+  .slot{ background: rgba(255,255,255,.025); border:1px solid rgba(255,255,255,.045); border-radius:5px; }
+
+  /* 用容器查询：字号随「课程块自身高度」缩放，短屏也不会溢出/重叠 */
+  .course{ position:relative; border-radius:6px; padding:2px 4px; display:flex; flex-direction:column;
+           gap:0; overflow:hidden; border:1px solid rgba(255,255,255,.18); color:#0b1420;
+           min-width:0; min-height:0; container-type: size; }
+  .course > *{ min-height:0; min-width:0; }
+  /* 课程卡片只放：课程名 / 教师 / 教室（时间看左侧栏，节数也不用重复） */
+  .course .name{ font-size: clamp(8px, 19cqh, 14px); font-weight:700; line-height:1.14; flex:0 1 auto;
+                 display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical;
+                 overflow:hidden; text-overflow:ellipsis; }
+  .course .teacher{ font-size: clamp(7px, 10cqh, 10px); font-weight:600; opacity:.72; line-height:1.2;
+                    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+                    flex:0 0 auto; margin-top:1px; }
+  .course .room{ margin-top:auto; font-size: clamp(8px, 15cqh, 12.5px); font-weight:600; line-height:1.12;
+                 flex:0 0 auto; white-space:normal; overflow-wrap:anywhere; word-break:break-word; }
+  .course .room .zone{ font-size:.86em; opacity:.78; font-weight:500; white-space:nowrap; }
+  /* 块太矮时依次牺牲：教师 → 课程名行数；「教室」永远保住 */
+  @container (max-height: 62px){ .course .teacher{ display:none; } .course .name{ -webkit-line-clamp:2; } }
+  @container (max-height: 38px){ .course .name{ -webkit-line-clamp:1; } }
+
+  .empty{ grid-column:1 / -1; display:flex; flex-direction:column; align-items:center; justify-content:center;
+          gap:6px; color: var(--muted); font-size: clamp(12px,2.2vh,17px); text-align:center; padding:16px; }
+  .empty small{ font-size: .75em; color:#647a99; }
+
+  /* ---------- 账号面板 ---------- */
+  #mask{ position:fixed; inset:0; z-index:50; background: rgba(3,7,12,.62); backdrop-filter: blur(3px);
+         display:none; align-items:center; justify-content:center; padding:12px; }
+  #mask.on{ display:flex; }
+  .sheet{ width:min(560px, 100%); max-height:100%; overflow:auto; background:#141d29;
+          border:1px solid rgba(255,255,255,.12); border-radius:14px; padding:14px 16px 16px;
+          box-shadow: 0 18px 60px rgba(0,0,0,.6); }
+  .sheet h2{ margin:0 0 2px; font-size:15px; }
+  .sheet .sub{ font-size:11.5px; color:var(--muted); margin-bottom:10px; line-height:1.5; }
+  .acct-line{ display:flex; align-items:center; gap:8px; padding:9px 11px; margin-bottom:10px;
+              background:rgba(255,255,255,.04); border:1px solid var(--line); border-radius:9px; font-size:12.5px; }
+  .acct-line .big{ font-weight:700; font-size:13.5px; }
+  .acct-line .dept{ color:var(--muted); }
+  .sheet textarea{ width:100%; min-height:74px; resize:vertical; font: inherit; font-size:12px;
+                   padding:8px 9px; border-radius:9px; color:var(--ink);
+                   background:#0d1621; border:1px solid var(--line); line-height:1.45; }
+  .sheet textarea:focus{ outline:none; border-color: rgba(79,209,197,.6); }
+  .sheet .hint{ font-size:11px; color:#7d93af; margin:6px 0 10px; line-height:1.5; }
+  .sheet .hint code{ background:rgba(255,255,255,.07); padding:1px 4px; border-radius:4px; font-size:10.5px; }
+  .sheet .ops{ display:flex; flex-wrap:wrap; gap:8px; }
+  .sheet .ops button{ font: inherit; font-size:12px; padding:7px 13px; border-radius:9px; cursor:pointer;
+                      border:1px solid var(--line); background:rgba(255,255,255,.05); color:var(--ink); }
+  .sheet .ops button:hover{ background:rgba(255,255,255,.1); }
+  .sheet .ops button.primary{ background:var(--accent); border-color:var(--accent); color:#08131f; font-weight:700; }
+  .sheet .ops button.danger{ color:#fca5a5; border-color:rgba(248,113,113,.4); }
+  .sheet .msg{ font-size:12px; margin-top:10px; min-height:16px; }
+  .sheet .msg.ok{ color:#86efac; } .sheet .msg.err{ color:#fca5a5; }
+
+  /* ---------- 账号密码登录表单 ---------- */
+  .sheet .login{ display:grid; grid-template-columns:1fr 1fr; gap:8px 10px; margin:4px 0 12px; }
+  .sheet .login .lf{ display:flex; flex-direction:column; gap:5px; font-size:11.5px; color:var(--muted); }
+  .sheet .login .lf.code{ grid-column:1 / -1; }
+  .sheet .login input{ width:100%; box-sizing:border-box; font:inherit; font-size:13px; padding:8px 10px;
+    border-radius:9px; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.12); color:var(--ink); }
+  .sheet .login input:focus{ outline:none; border-color:rgba(79,209,197,.6); }
+  .sheet .login .capwrap{ display:flex; gap:9px; align-items:center; }
+  .sheet .login .capwrap img{ height:36px; width:auto; min-width:100px; border-radius:7px; background:#fff;
+    cursor:pointer; padding:3px 6px; object-fit:contain; }
+  .sheet .login .capwrap input{ flex:1; }
+  .sheet .login button{ grid-column:1 / -1; font:inherit; font-size:13px; padding:9px 13px; border-radius:10px;
+    cursor:pointer; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.14); color:var(--ink); }
+  .sheet .login button.primary{ background:var(--accent); border-color:var(--accent); color:#08131f; font-weight:700; }
+  .sheet .or{ font-size:11px; color:#6f86a3; text-align:center; margin:2px 0 9px; }
+
+  /* ---------- 竖屏适配：不强制横屏，竖屏也一屏显示整周 ----------
+     竖屏时列很窄、行很高，所以字号要按「宽度」收敛（cqw），而不是按高度（cqh）。 */
+  @media (orientation: portrait){
+    :root{ --seccol: clamp(28px, 9vw, 40px); }            /* 左栏要放得下 08:20 / 09:05 两行 */
+    .course{ padding:1px 3px; }
+    .course .name{ font-size: clamp(8px, min(19cqh, 25cqw), 13px); -webkit-line-clamp:4; }
+    .course .teacher{ font-size: clamp(7px, min(10cqh, 15cqw), 9.5px); }
+    .course .room{ font-size: clamp(7.5px, min(15cqh, 22cqw), 12px); }
+    .day{ letter-spacing:0; }
+  }
+</style>
+</head>
+<body>
+
+
+<div id="app">
+  <header>
+    <div class="brand">广理<b>课表</b></div>
+    <button class="who" id="who" title="点击切换账号"><span id="whoText">未登录</span><span class="caret">▾</span></button>
+    <div class="spacer"></div>
+    <div class="wknav" id="wknav" hidden>
+      <button id="wPrev" title="上一周（←）">‹</button>
+      <select id="wSel" title="选择周次"></select>
+      <button id="wNext" title="下一周（→）">›</button>
+      <button class="now" id="wNow" title="回到本周">本周</button>
+    </div>
+    <div class="chip offline" id="chip" title=""><span class="dot"></span><span id="chipText">加载中…</span></div>
+    <button class="upd" id="btnUpd"><span class="ico">⟳</span>更新</button>
+    <div class="terms" id="terms"></div>
+  </header>
+  <main><div class="grid" id="grid"></div></main>
+</div>
+
+<div id="mask">
+  <div class="sheet" role="dialog" aria-modal="true">
+    <h2>账号与登录态</h2>
+    <div class="sub" id="acctSub">课表数据来自你本人的门户登录态（Cookie）。Cookie 过期时页面会保留缓存继续显示，但不会再更新。</div>
+
+    <div class="acct-line" id="acctLine">
+      <span class="big" id="acctName">未登录</span>
+      <span class="dept" id="acctDept"></span>
+      <span class="spacer"></span>
+      <span class="chip" id="acctChip"><span class="dot"></span><span id="acctChipText">—</span></span>
+    </div>
+
+    <div class="login">
+      <div class="lf">
+        <label for="lgUser">学号/手机号/账号</label>
+        <input id="lgUser" inputmode="numeric" autocomplete="username" placeholder="学号/手机号/账号">
+      </div>
+      <div class="lf">
+        <label for="lgPass">密码</label>
+        <input id="lgPass" type="password" autocomplete="current-password" placeholder="门户密码">
+      </div>
+      <div class="lf code">
+        <label for="lgCode">验证码（点图片可换）</label>
+        <div class="capwrap">
+          <img id="lgCap" alt="验证码" title="点击刷新验证码">
+          <input id="lgCode" inputmode="numeric" placeholder="算式答案，如 17">
+        </div>
+      </div>
+      <button class="primary" id="btnLogin">登录并同步</button>
+    </div>
+
+    <div class="or">— 或者粘贴 Cookie（密码登录失败时的兜底方案）—</div>
+
+    <textarea id="acctInput" placeholder="在这里粘贴：浏览器 F12 → Network → 任一 api/uppcard 请求 → 右键 Copy as cURL 的整段内容；
+也可以只粘贴 Cookie 串，如 SESSION=xxx; token=yyy"></textarea>
+    <div class="hint">
+      怎么拿：浏览器登录 <code>portal.gzist.edu.cn</code> → F12 打开开发者工具 → <b>Network</b> →
+      刷新页面 → 点任意 <code>api/uppcard/...</code> 请求 → 右键 <b>Copy as cURL</b> → 粘贴到上面。
+    </div>
+
+    <div class="ops">
+      <button class="primary" id="btnImport">导入并同步</button>
+      <button id="btnPortal">打开门户登录</button>
+      <button class="danger" id="btnLogout">退出 / 更换账号</button>
+      <button id="btnClose">关闭</button>
+    </div>
+    <div class="msg" id="acctMsg"></div>
+  </div>
+</div>
+
+<script src="data.js" onerror="this.remove()"></script>
+<script>
+/* =====================================================================
+   1) 作息时间：精确到「每一节」的上下课时间
+      来源：学校课表 App 课表页（用户提供实拍图，10 月第 7 周）
+        1  08:20–09:05        2  09:15–10:00
+        3  10:20–11:05        4  11:15–12:00
+        5  14:00–14:45        6  14:55–15:40
+        7  16:00–16:45        8  16:55–17:40
+        9  18:40–19:25       10  19:35–20:00
+        11 20:10–20:55       12  21:05–21:50   ← 图中没有，按同样规律推测
+      说明：教务处 2022 年《师生错时错峰上下课的通知》里 6/13 号楼是
+      第3-4节到 11:40、第7-8节到 17:20（与课表 App 不同）。这里以课表 App
+      实际显示为准；若学校恢复错峰，把这几节改回 11:40 / 17:20 即可。
+   ===================================================================== */
+const SECTION_TIME = {
+  1: ["08:20","09:05"],  2: ["09:15","10:00"],
+  3: ["10:20","11:05"],  4: ["11:15","12:00"],
+  5: ["14:00","14:45"],  6: ["14:55","15:40"],
+  7: ["16:00","16:45"],  8: ["16:55","17:40"],
+  9: ["18:40","19:25"], 10: ["19:35","20:00"],
+  11:["20:10","20:55"], 12: ["21:05","21:50"],
+};
+
+/* 课块显示的时间 = 首节上课 → 末节下课，如第 3-4 节 → 10:20–12:00 */
+function timeForBlock(b){
+  const s = SECTION_TIME[b.startSection], e = SECTION_TIME[b.endSection];
+  if (!s || !e) return "—";
+  return s[0] + "–" + e[1];
+}
+
+/* 逐节时间，放进 title 提示：第3节 10:20–11:05 / 第4节 11:15–12:00 */
+function sectionDetail(b){
+  const out = [];
+  for (let i = b.startSection; i <= b.endSection; i++)
+    if (SECTION_TIME[i]) out.push("第" + i + "节 " + SECTION_TIME[i][0] + "–" + SECTION_TIME[i][1]);
+  return out.join(" / ");
+}
+
+/* 颜色 */
+const PALETTE = [["#8ee7dc","#0b3f3a"],["#ffd59e","#4a2c00"],["#c3b5fd","#241a52"],["#a8d8b9","#12351f"],
+  ["#f7a8b8","#4a0f1d"],["#a5c8ff","#0c2a55"],["#f6e08a","#423700"],["#f0b8e6","#3d1136"],
+  ["#9fe3b0","#0f3a1d"],["#ffc2a1","#4a2205"],["#b7e0ff","#0a3350"],["#d9c6a3","#3a2c12"]];
+function colorOf(name){ let h=0; for(let i=0;i<name.length;i++) h=(h*31+name.charCodeAt(i))>>>0; const [bg,fg]=PALETTE[h%PALETTE.length]; return {bg,fg}; }
+
+/* =====================================================================
+   2) 数据层：缓存优先 → 后台同步 → 手动更新
+   ===================================================================== */
+const DAYS = ["周一","周二","周三","周四","周五","周六","周日"];
+const CACHE_KEY = "kb.cache.v3";
+const API = "http://" + (location.hostname || "127.0.0.1") + ":8787"; // 服务端地址
+const SAME_ORIGIN_API = /^https?:$/.test(location.protocol) && location.port === "8787";
+
+let DATA = null;          // 当前课表数据
+let cur = null;           // 当前学期 key
+let curWeek = null;       // 当前显示的周次（数字）
+let weekTouched = false;  // 用户是否手动选过周次（没选过就跟着"本周"走）
+const weekPick = {};      // 每个学期记住上次看的周次
+let termKeys = [];
+let lastSource = "cache"; // cache | server | builtin | none
+let lastState = { status: "idle", needLogin: false, loggedOut: false, lastSyncAt: null };
+
+const $ = id => document.getElementById(id);
+
+/* --- 更新时间展示 --- */
+function fmtTime(iso){
+  const d = new Date(iso); if (isNaN(d)) return "—";
+  const p = n => String(n).padStart(2,"0");
+  return `${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+function ago(iso){
+  const t = new Date(iso).getTime(); if (isNaN(t)) return "";
+  const s = Math.max(0, (Date.now()-t)/1000);
+  if (s < 60) return "刚刚";
+  if (s < 3600) return `${Math.floor(s/60)} 分钟前`;
+  if (s < 86400) return `${Math.floor(s/3600)} 小时前`;
+  return `${Math.floor(s/86400)} 天前`;
+}
+
+function setChip(kind, text, onClick){
+  const c = $("chip");
+  c.className = "chip " + kind;
+  $("chipText").textContent = text;
+  c.onclick = onClick || null;
+  c.style.cursor = onClick ? "pointer" : "default";
+}
+
+/* --- 周次 --- */
+function weekCountOf(term){
+  if (!term) return 0;
+  const n = Number(term.weekcount) || 0;
+  if (n) return n;
+  return term.weeks ? Object.keys(term.weeks).length : 0;
+}
+function blocksOfWeek(term, wk){
+  const ws = (term && term.weeks) || null;
+  if (!ws || wk == null) return (term && term.blocks) || [];
+  return ws[wk] || ws[String(wk)] || [];
+}
+function syncWeekNav(term, wc){
+  const nav = $("wknav"), sel = $("wSel");
+  if (!wc){ nav.hidden = true; return; }
+  nav.hidden = false;
+  const cw = Number(term.currentWeek) || 0;
+  sel.innerHTML = Array.from({length: wc}, (_, i) => i + 1).map(w =>
+    `<option value="${w}"${w === curWeek ? " selected" : ""}>第${w}周${w === cw ? " · 本周" : ""}</option>`).join("");
+  sel.value = String(curWeek);
+  $("wPrev").disabled = curWeek <= 1;
+  $("wNext").disabled = curWeek >= wc;
+  $("wNow").disabled = !cw || cw === curWeek;
+  weekPick[cur] = curWeek;
+}
+function setWeek(w){
+  const term = DATA && DATA.termsData ? DATA.termsData[cur] : null;
+  const wc = weekCountOf(term);
+  if (!wc) return;
+  weekTouched = true;
+  curWeek = Math.min(wc, Math.max(1, w));
+  renderTerm(cur);
+}
+
+/* --- 渲染 --- */
+function renderTerm(termKey){
+  const grid = $("grid");
+  const term = DATA && DATA.termsData ? DATA.termsData[termKey] : null;
+  const anyBlocks = term && term.weeks ? Object.values(term.weeks).some(a => a && a.length) : !!(term && (term.blocks || []).length);
+  const wc = anyBlocks ? weekCountOf(term) : 0;   // 整学期一节课都没有，就别显示周次导航了
+
+  if (wc){
+    if (!weekTouched || !curWeek || curWeek > wc)
+      curWeek = Number(term.currentWeek) || Number(term.zs) || Number(weekPick[termKey]) || 1;
+  } else {
+    curWeek = null;
+  }
+  syncWeekNav(term, wc);
+
+  const blocks = wc ? blocksOfWeek(term, curWeek) : ((term && term.blocks) || []);
+
+  if (!blocks.length){
+    grid.style.gridTemplateColumns = "1fr";
+    grid.style.gridTemplateRows = "1fr";
+    grid.innerHTML = wc
+      ? `<div class="empty">第 ${curWeek} 周没有课<small>（这一周没排课，点 ‹ › 或下拉框换一周看看）</small></div>`
+      : `<div class="empty">该学期暂无课程数据<small>（可能未开放 / 已结课 / 尚未排课）</small></div>`;
+    return;
+  }
+  const rows = Math.max(10, ...blocks.map(b => b.endSection || 0));
+  grid.style.gridTemplateColumns = `var(--seccol) repeat(7, minmax(0, 1fr))`;
+  grid.style.gridTemplateRows = `clamp(19px, 4.4vh, 26px) repeat(${rows}, minmax(0, 1fr))`;
+  grid.innerHTML = "";
+
+  const frag = document.createDocumentFragment();
+  const add = (el, col, row, span=1) => {
+    el.style.gridColumn = col;
+    el.style.gridRow = row + (span > 1 ? ` / span ${span}` : "");
+    frag.appendChild(el);
+  };
+
+  const corner = document.createElement("div");
+  corner.className = "corner"; corner.textContent = "节";
+  add(corner, "1", "1");
+
+  const todayIdx = (new Date().getDay() + 6) % 7;
+  DAYS.forEach((d,i) => {
+    const el = document.createElement("div");
+    el.className = "day" + (i === todayIdx ? " today" : "");
+    el.textContent = d;
+    add(el, String(i+2), "1");
+  });
+
+  for (let s = 1; s <= rows; s++){
+    const sec = document.createElement("div");
+    sec.className = "sec";
+    const st = SECTION_TIME[s];
+    sec.innerHTML = `<b>${s}</b>` + (st ? `<span class="t"><span>${st[0]}</span><span>${st[1]}</span></span>` : "");
+    add(sec, "1", String(s+1));
+    for (let d = 0; d < 7; d++){
+      const slot = document.createElement("div");
+      slot.className = "slot";
+      add(slot, String(d+2), String(s+1));
+    }
+  }
+
+  blocks.forEach(b => {
+    const span = Math.max(1, (b.endSection||1) - (b.startSection||1) + 1);
+    const {bg,fg} = colorOf(b.name || "?");
+    const t = timeForBlock(b);
+    const detail = sectionDetail(b);
+    const el = document.createElement("div");
+    el.className = "course";
+    el.style.background = bg; el.style.color = fg;
+    el.title = [b.name, b.room, t, detail, b.teacher, b.cls].filter(Boolean).join("\n");
+    el.innerHTML =
+      `<div class="name">${escapeHtml(b.name || "")}</div>` +
+      (b.teacher ? `<div class="teacher">${escapeHtml(b.teacher)}</div>` : "") +
+      `<div class="room">${roomHtml(b.room || "")}</div>`;
+    add(el, String((b.day||0)+2), String((b.startSection||1)+1), span);
+  });
+
+  grid.appendChild(frag);
+}
+
+function applyData(data, source){
+  if (!data || !data.termsData) return false;
+  DATA = data;
+  lastSource = source;
+  termKeys = Object.keys(data.termsData);
+  if (!termKeys.length) termKeys = data.terms || [];
+  if (!cur || !termKeys.includes(cur)) cur = termKeys[0];
+
+  // 学生
+  const stu = data.student || {};
+  $("whoText").textContent = studentLabel(stu);
+
+  // 学期切换
+  const termsEl = $("terms");
+  termsEl.innerHTML = termKeys.map(t =>
+      `<button data-t="${escapeHtml(t)}" aria-pressed="${t===cur}">${escapeHtml(fmtTerm(t))}</button>`).join("");
+  termsEl.onclick = e => {
+    const b = e.target.closest("button"); if (!b) return;
+    cur = b.dataset.t;
+    curWeek = null; weekTouched = false;
+    [...termsEl.children].forEach(x => x.setAttribute("aria-pressed", x.dataset.t === cur));
+    renderTerm(cur);
+  };
+
+  renderTerm(cur);
+  return true;
+}
+
+function fmtTerm(t){
+  const m = /^(\d{4})-(\d{4})-([12])$/.exec(t);
+  if (!m) return t;
+  return m[3] === "1" ? `${m[1]} 秋` : `${m[2]} 春`;
+}
+
+/* --- 缓存读写 --- */
+function saveCache(data){
+  try { localStorage.setItem(CACHE_KEY, JSON.stringify({ at: data.fetchedAt, data })); } catch {}
+}
+function loadCache(){
+  try { const j = JSON.parse(localStorage.getItem(CACHE_KEY) || "null"); return j && j.data ? j.data : null; } catch { return null; }
+}
+function clearCache(){ try { localStorage.removeItem(CACHE_KEY); } catch {} }
+
+/* 账号显示：有姓名显示姓名，没有就显示学号，再拼班级 */
+function studentLabel(stu){
+  stu = stu || {};
+  const who = stu.name || (stu.userId ? "学号 " + stu.userId : "未登录");
+  return [who, stu.dept].filter(Boolean).join(" · ");
+}
+
+/* --- 空/异常状态页 --- */
+function renderNotice(title, sub){
+  const grid = $("grid");
+  grid.style.gridTemplateColumns = "1fr";
+  grid.style.gridTemplateRows = "1fr";
+  grid.innerHTML = `<div class="empty">${escapeHtml(title)}${sub ? `<small>${escapeHtml(sub)}</small>` : ""}</div>`;
+  DATA = null; termKeys = [];
+  $("terms").innerHTML = "";
+  $("wknav").hidden = true;
+}
+
+/* --- 与服务端通信 --- */
+async function apiFetch(path, opts){
+  const url = API + path;
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), 20000);
+  try {
+    const r = await fetch(url, { ...opts, signal: ctl.signal, cache: "no-store" });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    return await r.json();
+  } finally { clearTimeout(timer); }
+}
+
+async function refresh({ silent = false } = {}){
+  try {
+    const j = await apiFetch("/api/schedule");
+    const st = j.state || {};
+    lastState = st;
+
+    // ① 用户主动退出登录：清掉本地缓存，回到「未登录」
+    if (st.loggedOut){
+      clearCache();
+      $("whoText").textContent = "未登录";
+      renderNotice("未登录", "点左上角「未登录」，用学号密码登录即可（也可粘贴 cURL）");
+      setChip("bad", "未登录 · 点此登录", openAcct);
+      return false;
+    }
+
+    // ② Cookie 自然过期：保留缓存继续显示，只是不再更新
+    if (st.needLogin){
+      setChip("bad", "登录失效 · 点此处理", openAcct);
+      $("chip").title = "门户登录态已过期：页面继续显示上次同步的课表，但不会再更新。点此用学号密码重新登录。";
+      if (!DATA) renderNotice("登录已失效", "点左上角「未登录」，用学号密码登录即可");
+      return false;
+    }
+
+    if (j.ok && j.data){
+      const changed = !DATA || DATA.fetchedAt !== j.data.fetchedAt;
+      if (changed) applyData(j.data, "server");
+      const stored = loadCache();
+      if (!stored || stored.fetchedAt !== j.data.fetchedAt) saveCache(j.data);
+      const at = j.fetchedAt || j.data.fetchedAt;
+      setChip("ok", `已同步 · ${fmtTime(at)}`);
+      $("chip").title = `更新时间：${fmtTime(at)}（${ago(at)}）`;
+      return true;
+    }
+
+    // ③ 服务端还没数据（从未同步成功）
+    if (!DATA) renderNotice("还没有课表数据", "点左上角账号导入 Cookie，再点「更新」");
+    setChip("offline", "暂无数据");
+    return false;
+  } catch (e){
+    // 服务不可达（未启动 / file:// 双击）
+    const t = DATA && DATA.fetchedAt ? fmtTime(DATA.fetchedAt) : "—";
+    setChip("offline", `离线 · 缓存 ${t}`);
+    $("chip").title = "未连接到本地服务（node server/server.mjs）。当前显示本地缓存。";
+    return false;
+  }
+}
+
+async function manualSync(){
+  const btn = $("btnUpd");
+  btn.disabled = true; btn.classList.add("spin");
+  setChip("syncing", "同步中…");
+  try {
+    const j = await apiFetch("/api/sync", { method: "POST" });
+    if (j.ok){
+      await refresh({ silent: true });
+      const at = j.fetchedAt ? fmtTime(j.fetchedAt) : "—";
+      setChip("ok", `已同步 · ${at}`);
+    } else if (j.needLogin){
+      setChip("bad", "登录失效 · 点此处理", openAcct);
+    } else {
+      setChip("bad", "更新失败 · 点此重试", manualSync);
+      console.warn("sync failed:", j.error);
+    }
+  } catch (e){
+    setChip("offline", "服务未启动");
+    $("chip").title = "请先运行：node server/server.mjs";
+  } finally {
+    btn.disabled = false; btn.classList.remove("spin");
+  }
+}
+
+/* ---------------------------------------------------------------------
+   账号面板：切换账号 / 重新导入 Cookie / 退出登录
+   --------------------------------------------------------------------- */
+function openAcct(){
+  const stu = (DATA && DATA.student) || {};
+  $("acctName").textContent = stu.name || (stu.userId ? "学号 " + stu.userId : "未登录");
+  $("acctDept").textContent = stu.dept || (DATA ? "" : "（没有课表数据）");
+
+  const c = $("acctChip");
+  const st = lastState;
+  let kind = "offline", txt = "状态未知";
+  if (st.loggedOut) { kind = "bad"; txt = "已退出登录"; }
+  else if (st.needLogin) { kind = "bad"; txt = "登录已失效"; }
+  else if (st.status === "ok") { kind = "ok"; txt = "登录正常 · " + fmtTime(st.lastSyncAt || (DATA && DATA.fetchedAt)); }
+  else if (st.status === "syncing") { kind = "syncing"; txt = "同步中…"; }
+  else if (st.status === "error") { kind = "bad"; txt = "同步出错"; }
+  c.className = "chip " + kind;
+  $("acctChipText").textContent = txt;
+
+  $("acctMsg").textContent = "";
+  $("acctMsg").className = "msg";
+  $("acctInput").value = "";
+  $("lgPass").value = "";
+  $("lgCode").value = "";
+  if (DATA && DATA.student && DATA.student.userId) $("lgUser").value = DATA.student.userId;
+  $("mask").classList.add("on");
+  loadCaptcha();
+  setTimeout(() => { (($("lgUser").value ? $("lgPass") : $("lgUser")) || $("lgUser")).focus(); }, 60);
+}
+function closeAcct(){ $("mask").classList.remove("on"); }
+
+function acctMsg(text, ok){
+  const el = $("acctMsg");
+  el.textContent = text;
+  el.className = "msg " + (ok ? "ok" : "err");
+}
+
+/** 拉一张新的验证码（算术题图片） */
+let capUid = "", capBusy = false, capAt = 0;
+async function loadCaptcha(){
+  if (capBusy) return;
+  capBusy = true;
+  const img = $("lgCap");
+  img.style.opacity = ".4";
+  try {
+    const r = await apiFetch("/api/auth/captcha");
+    if (!r.ok) throw new Error(r.error || "验证码获取失败");
+    capUid = r.uid;
+    capAt = Date.now();
+    img.src = r.image;
+    $("lgCode").value = "";
+  } catch (e){
+    capUid = "";
+    img.removeAttribute("src");
+    acctMsg("✗ " + e.message, false);
+  } finally {
+    img.style.opacity = "1";
+    capBusy = false;
+  }
+}
+
+/** 学号 + 密码 + 验证码 → 服务端走 CAS 登录 → 同步课表 */
+async function doLogin(){
+  const username = $("lgUser").value.trim();
+  const password = $("lgPass").value;
+  const code = $("lgCode").value.trim();
+  if (!username || !password) { acctMsg("请填写学号和密码", false); return; }
+  if (!capUid) { acctMsg("验证码没加载出来，点一下图片刷新", false); return; }
+  if (!code) { acctMsg("请填写验证码算式的答案", false); return; }
+  if (Date.now() - capAt > 100 * 1000) {
+    acctMsg("验证码放太久会失效，已换新的一张，请重新填答案", false);
+    await loadCaptcha();
+    return;
+  }
+
+  const btn = $("btnLogin");
+  btn.disabled = true; btn.textContent = "登录中…";
+  acctMsg("正在登录门户…", true);
+  try {
+    const r = await apiFetch("/api/auth/login", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password, code, uid: capUid }),
+    });
+    if (!r.ok) {
+      acctMsg("✗ " + (r.error || "登录失败"), false);
+      await loadCaptcha();
+      return;
+    }
+    acctMsg("✅ 登录成功，正在写入课表…", true);
+    await refresh({ silent: true });
+    $("lgPass").value = ""; $("lgCode").value = "";
+    setTimeout(closeAcct, 900);
+  } catch (e){
+    acctMsg("✗ " + e.message, false);
+    await loadCaptcha();
+  } finally {
+    btn.disabled = false; btn.textContent = "登录并同步";
+  }
+}
+
+/** 从 cURL / Cookie 头 / 纯 Cookie 串里抠出 cookie */
+function extractCookie(text){
+  const t = String(text || "").trim();
+  if (!t) return "";
+  let m = /(?:-H|--header)\s+['"](?:cookie|Cookie):\s*([^'"]+)['"]/i.exec(t);
+  if (m) return m[1].trim();
+  m = /(?:-b|--cookie)\s+['"]([^'"]+)['"]/i.exec(t);
+  if (m && m[1].includes("=")) return m[1].trim();
+  m = /(?:^|\n)\s*cookie:\s*(.+)/i.exec(t);
+  if (m) return m[1].trim();
+  if (t.includes("=") && !/\bcurl\b/i.test(t)) return t.split("\n")[0].trim();
+  return "";
+}
+
+async function doImport(){
+  const raw = $("acctInput").value;
+  const cookie = extractCookie(raw);
+  if (!cookie) { acctMsg("没找到 Cookie：请粘贴完整的 Copy as cURL 内容，或 SESSION=…; token=… 形式的串", false); return; }
+  if (!cookie.includes("=")) { acctMsg("Cookie 格式不对，缺少 name=value", false); return; }
+
+  const btn = $("btnImport");
+  btn.disabled = true; btn.textContent = "导入中…";
+  acctMsg("正在清除旧账号并导入…", true);
+  try {
+    // 先清旧账号（含旧课表数据），避免串号
+    await apiFetch("/api/auth/logout", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ wipe: true }) });
+    clearCache();
+    const r = await apiFetch("/api/auth/cookies", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ cookie }),
+    });
+    if (!r.ok) throw new Error(r.error || "导入失败");
+    acctMsg(`已导入 ${r.imported} 个 Cookie，正在同步课表…`, true);
+    const s = await apiFetch("/api/sync", { method: "POST" });
+    if (!s.ok) throw new Error(s.error || "同步失败（Cookie 可能已过期或不属于门户域）");
+    await refresh({ silent: true });
+    acctMsg("✅ 同步成功，课表已更新", true);
+    setTimeout(closeAcct, 900);
+  } catch (e){
+    acctMsg("✗ " + e.message, false);
+    await refresh({ silent: true });
+  } finally {
+    btn.disabled = false; btn.textContent = "导入并同步";
+  }
+}
+
+async function doLogout(){
+  if (!confirm("退出当前账号？\n\n会清除服务端的登录 Cookie 和本地缓存的课表，之后需要重新导入新账号的 Cookie。")) return;
+  const btn = $("btnLogout");
+  btn.disabled = true; btn.textContent = "退出中…";
+  try {
+    await apiFetch("/api/auth/logout", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ wipe: true }) });
+    clearCache();
+    const builtin = window.__KB_DATA__;
+    if (builtin) { try { delete window.__KB_DATA__; } catch {} }
+    $("whoText").textContent = "未登录";
+    renderNotice("未登录", "点左上角「未登录」，用学号密码登录即可（也可粘贴 cURL）");
+    setChip("bad", "未登录 · 点此登录", openAcct);
+    acctMsg("已退出。现在可以在上面粘贴新账号的 cURL 导入。", true);
+  } catch (e){
+    acctMsg("✗ " + e.message, false);
+  } finally {
+    btn.disabled = false; btn.textContent = "退出 / 更换账号";
+  }
+}
+
+/* --- 启动：先缓存，后同步 --- */
+function boot(){
+  // 1) 立刻显示旧缓存（打开即见）
+  const cached = loadCache();
+  if (cached && applyData(cached, "cache")){
+    setChip("offline", `缓存 · ${fmtTime(cached.fetchedAt)} · 同步中…`);
+    $("chip").title = `缓存更新时间：${fmtTime(cached.fetchedAt)}（${ago(cached.fetchedAt)}）`;
+  } else if (window.__KB_DATA__ && applyData(window.__KB_DATA__, "builtin")){
+    setChip("offline", `内置数据 · ${fmtTime(window.__KB_DATA__.fetchedAt || "")}`);
+  } else {
+    setChip("syncing", "加载中…");
+  }
+
+  // 2) 立刻向服务端同步（覆盖缓存）
+  refresh({ silent: true });
+
+  // 3) 定时检查（服务端每 15 分钟自动同步，这里只拉最新）
+  setInterval(() => refresh({ silent: true }), 45 * 1000);
+
+  // 4) 手动更新
+  $("btnUpd").onclick = manualSync;
+
+  // 4.5) 周次切换
+  $("wPrev").onclick = () => setWeek((curWeek || 1) - 1);
+  $("wNext").onclick = () => setWeek((curWeek || 1) + 1);
+  $("wSel").onchange = e => setWeek(Number(e.target.value) || 1);
+  $("wNow").onclick = () => {
+    const term = DATA && DATA.termsData ? DATA.termsData[cur] : null;
+    const cw = Number(term && term.currentWeek) || 0;
+    if (cw) setWeek(cw);
+  };
+
+  // 5) 账号面板
+  $("who").onclick = openAcct;
+  $("btnClose").onclick = closeAcct;
+  $("btnImport").onclick = doImport;
+  $("btnLogout").onclick = doLogout;
+  $("btnPortal").onclick = () => window.open("https://portal.gzist.edu.cn", "_blank", "noopener");
+  $("btnLogin").onclick = doLogin;
+  $("lgCap").onclick = loadCaptcha;
+  [$("lgUser"), $("lgPass"), $("lgCode")].forEach(el => el.addEventListener("keydown", e => {
+    if (e.key === "Enter") doLogin();
+  }));
+  $("mask").addEventListener("click", e => { if (e.target === $("mask")) closeAcct(); });
+  document.addEventListener("keydown", e => { if (e.key === "Escape") closeAcct(); });
+  $("acctInput").addEventListener("keydown", e => {
+    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") doImport();
+  });
+
+  // 页面重新可见时也拉一次
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") refresh({ silent: true });
+  });
+}
+
+/* --- 工具 --- */
+const CAMPUS = ["白云","花都","番禺","肇庆","高要","鼎湖","三水","清远","天河"];
+function roomHtml(r){
+  const s = escapeHtml(r);
+  const m = /^(.*)[（(]([^（）()]{1,8})[）)]$/.exec(s);
+  if (m && CAMPUS.some(c => m[2].includes(c)))
+    return m[1] + `<span class="zone">（${m[2]}）</span>`;   // 校区名单独小字，断行更整齐
+  return s.replace(/([（(])/g, "<wbr>$1");
+}
+function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+
+document.addEventListener("DOMContentLoaded", boot);
+if (document.readyState !== "loading") boot();
+</script>
+</body>
+</html>
