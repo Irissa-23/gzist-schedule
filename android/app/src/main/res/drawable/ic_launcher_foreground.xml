@@ -1,0 +1,16 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- simple calendar glyph centered in the 108x108 adaptive safe zone -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M38,30h32a6,6 0,0 1,6 6v38a6,6 0,0 1,-6 6h-32a6,6 0,0 1,-6 -6v-38a6,6 0,0 1,6 -6zM38,42h32v-6h-32z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M42,26h4v10h-4zM62,26h4v10h-4z" />
+    <path
+        android:fillColor="#1E6FD9"
+        android:pathData="M40,52h8v8h-8zM52,52h8v8h-8zM64,52h4v8h-4zM40,64h8v8h-8zM52,64h8v8h-8z" />
+</vector>

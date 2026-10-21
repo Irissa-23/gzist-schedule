@@ -3,6 +3,9 @@ node_modules/
 
 # 运行时数据（含 Cookie / 学号姓名等隐私，禁止入库）
 data/
+web/data.json
+web/data.js
+clip.txt
 
 # 日志与临时文件
 *.log
